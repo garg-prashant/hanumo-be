@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Hanumo Property Rental System - Stop Script
-# This script stops the FastAPI application gracefully
+# This script stops the Node.js TypeScript application gracefully
 
 set -e
 
@@ -18,25 +18,25 @@ APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PID_FILE="$APP_DIR/hanumo.pid"
 LOG_DIR="$APP_DIR/logs"
 
-echo -e "${BLUE}Stopping $APP_NAME...${NC}"
+echo -e "${BLUE}Stopping $APP_NAME (Node.js TypeScript)...${NC}"
 
 # Check if PID file exists
 if [ ! -f "$PID_FILE" ]; then
     echo -e "${YELLOW}No PID file found. Application may not be running.${NC}"
     
-    # Try to find and kill any uvicorn processes
-    UVICORN_PIDS=$(pgrep -f "uvicorn main:app" || true)
-    if [ -n "$UVICORN_PIDS" ]; then
-        echo -e "${YELLOW}Found running uvicorn processes: $UVICORN_PIDS${NC}"
-        echo -e "${BLUE}Killing uvicorn processes...${NC}"
-        kill $UVICORN_PIDS
+    # Try to find and kill any Node.js processes running the app
+    NODE_PIDS=$(pgrep -f "node dist/index.js" || true)
+    if [ -n "$NODE_PIDS" ]; then
+        echo -e "${YELLOW}Found running Node.js processes: $NODE_PIDS${NC}"
+        echo -e "${BLUE}Killing Node.js processes...${NC}"
+        kill $NODE_PIDS
         sleep 2
         
         # Force kill if still running
-        UVICORN_PIDS=$(pgrep -f "uvicorn main:app" || true)
-        if [ -n "$UVICORN_PIDS" ]; then
+        NODE_PIDS=$(pgrep -f "node dist/index.js" || true)
+        if [ -n "$NODE_PIDS" ]; then
             echo -e "${YELLOW}Force killing remaining processes...${NC}"
-            kill -9 $UVICORN_PIDS
+            kill -9 $NODE_PIDS
         fi
         
         echo -e "${GREEN}✓ Application stopped${NC}"
@@ -87,11 +87,20 @@ else
     rm -f "$PID_FILE"
 fi
 
-# Clean up any remaining uvicorn processes
-REMAINING_PIDS=$(pgrep -f "uvicorn main:app" || true)
+# Clean up any remaining Node.js processes
+REMAINING_PIDS=$(pgrep -f "node dist/index.js" || true)
 if [ -n "$REMAINING_PIDS" ]; then
-    echo -e "${YELLOW}Cleaning up remaining uvicorn processes...${NC}"
+    echo -e "${YELLOW}Cleaning up remaining Node.js processes...${NC}"
     kill -9 $REMAINING_PIDS
 fi
 
+# Clean up any remaining processes on the default port
+PORT=${PORT:-3000}
+PORT_PIDS=$(lsof -ti :$PORT 2>/dev/null || true)
+if [ -n "$PORT_PIDS" ]; then
+    echo -e "${YELLOW}Cleaning up processes on port $PORT...${NC}"
+    kill -9 $PORT_PIDS 2>/dev/null || true
+fi
+
 echo -e "${GREEN}✓ All processes stopped${NC}"
+echo -e "${BLUE}To start the application again, run: ./start.sh${NC}"
