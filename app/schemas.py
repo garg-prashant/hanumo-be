@@ -5,14 +5,14 @@ from app.models import UserType, PaymentMode, PaymentStatus
 
 # User Schemas
 class UserBase(BaseModel):
-    email: EmailStr
-    username: str
-    full_name: str
+    email: Optional[EmailStr] = None
+    username: Optional[str] = None
+    full_name: Optional[str] = None
     phone_number: Optional[str] = None
-    user_type: UserType
+    user_type: Optional[UserType] = None
 
 class UserCreate(UserBase):
-    password: str
+    password: Optional[str] = None  # Not required for Privy users
 
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
@@ -23,11 +23,27 @@ class UserUpdate(BaseModel):
 
 class UserResponse(UserBase):
     id: int
+    privy_id: Optional[str] = None
+    profile_id: Optional[str] = None
     is_active: bool
     created_at: datetime
     updated_at: Optional[datetime] = None
     
     model_config = {"from_attributes": True}
+
+# Privy Authentication Schemas
+class PrivyAuthRequest(BaseModel):
+    access_token: str
+
+class PrivyUserData(BaseModel):
+    privy_id: str
+    profile_id: Optional[str] = None
+    email: Optional[str] = None
+    full_name: Optional[str] = None
+
+class PrivyAuthResponse(BaseModel):
+    user: UserResponse
+    is_new_user: bool
 
 # Property Schemas
 class PropertyBase(BaseModel):

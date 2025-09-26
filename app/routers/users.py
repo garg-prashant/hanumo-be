@@ -6,9 +6,68 @@ from datetime import timedelta
 
 from app.database import get_db
 from app import crud, schemas, auth
+from app.privy_service import privy_service
 
 router = APIRouter()
 
+# Privy Authentication Endpoints
+@router.post("/privy/auth", response_model=schemas.PrivyAuthResponse)
+async def privy_authenticate(auth_request: schemas.PrivyAuthRequest, db: Session = Depends(get_db)):
+    """
+    Authenticate user with Privy token.
+    If user exists, return user details.
+    If user doesn't exist, create new user and return details.
+    """
+    try:
+        # Verify token with Privy
+        privy_user_data = await privy_service.verify_access_token(auth_request.access_token)
+        user_data = privy_service.extract_user_data(privy_user_data)
+        
+        # Check if user already exists
+        existing_user = crud.get_user_by_privy_id(db, privy_id=user_data["privy_id"])
+        
+        if existing_user:
+            # User exists, return user details
+            return schemas.PrivyAuthResponse(
+                user=existing_user,
+                is_new_user=False
+            )
+        else:
+            # User doesn't exist, create new user
+            privy_user_schema = schemas.PrivyUserData(**user_data)
+            new_user = crud.create_privy_user(db, privy_user_schema)
+            
+            return schemas.PrivyAuthResponse(
+                user=new_user,
+                is_new_user=True
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Authentication failed: {str(e)}"
+        )
+
+@router.get("/privy/me", response_model=schemas.UserResponse)
+async def get_privy_user_me(current_user: schemas.UserResponse = Depends(auth.get_current_active_user_from_privy)):
+    """Get current Privy user information"""
+    return current_user
+
+@router.put("/privy/me", response_model=schemas.UserResponse)
+async def update_privy_user_profile(
+    user_update: schemas.UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: schemas.UserResponse = Depends(auth.get_current_active_user_from_privy)
+):
+    """Update Privy user profile information"""
+    updated_user = crud.update_user(db, user_id=current_user.id, user_update=user_update)
+    if updated_user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    return updated_user
+
+# Traditional Authentication Endpoints (kept for backward compatibility)
 @router.post("/register", response_model=schemas.UserResponse)
 def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     """Register a new user"""

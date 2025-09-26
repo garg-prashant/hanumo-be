@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 
 from app.database import get_db
 from app import crud, schemas
+from app.privy_service import privy_service
 
 load_dotenv()
 
@@ -52,6 +53,38 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     return user
 
 def get_current_active_user(current_user: schemas.UserResponse = Depends(get_current_user)):
+    if not current_user.is_active:
+        raise HTTPException(status_code=400, detail="Inactive user")
+    return current_user
+
+# Privy Authentication Functions
+async def get_current_user_from_privy_token(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    """Get current user from Privy token"""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate Privy credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    
+    try:
+        # Verify token with Privy
+        privy_user_data = await privy_service.verify_access_token(token)
+        user_data = privy_service.extract_user_data(privy_user_data)
+        
+        # Check if user exists in our database
+        user = crud.get_user_by_privy_id(db, privy_id=user_data["privy_id"])
+        if user is None:
+            raise credentials_exception
+        
+        return user
+        
+    except HTTPException:
+        raise
+    except Exception:
+        raise credentials_exception
+
+def get_current_active_user_from_privy(current_user: schemas.UserResponse = Depends(get_current_user_from_privy_token)):
+    """Get current active user from Privy token"""
     if not current_user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user

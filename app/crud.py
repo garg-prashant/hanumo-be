@@ -61,11 +61,20 @@ def get_user_by_email(db: Session, email: str) -> Optional[models.User]:
 def get_user_by_username(db: Session, username: str) -> Optional[models.User]:
     return db.query(models.User).filter(models.User.username == username).first()
 
+def get_user_by_privy_id(db: Session, privy_id: str) -> Optional[models.User]:
+    return db.query(models.User).filter(models.User.privy_id == privy_id).first()
+
+def get_user_by_profile_id(db: Session, profile_id: str) -> Optional[models.User]:
+    return db.query(models.User).filter(models.User.profile_id == profile_id).first()
+
 def get_users(db: Session, skip: int = 0, limit: int = 100) -> List[models.User]:
     return db.query(models.User).offset(skip).limit(limit).all()
 
 def create_user(db: Session, user: schemas.UserCreate) -> models.User:
-    hashed_password = get_password_hash(user.password)
+    hashed_password = None
+    if user.password:
+        hashed_password = get_password_hash(user.password)
+    
     db_user = models.User(
         email=user.email,
         username=user.username,
@@ -73,6 +82,20 @@ def create_user(db: Session, user: schemas.UserCreate) -> models.User:
         full_name=user.full_name,
         phone_number=user.phone_number,
         user_type=user.user_type
+    )
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+def create_privy_user(db: Session, privy_data: schemas.PrivyUserData) -> models.User:
+    """Create a new user from Privy authentication data"""
+    db_user = models.User(
+        privy_id=privy_data.privy_id,
+        profile_id=privy_data.profile_id,
+        email=privy_data.email,
+        full_name=privy_data.full_name,
+        is_active=True
     )
     db.add(db_user)
     db.commit()
