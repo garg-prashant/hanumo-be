@@ -6,27 +6,11 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
-enum UserType {
-  TENANT
-  OWNER
-}
-
-enum PaymentMode {
-  MONTHLY
-  WEEKLY
-  DAILY
-}
-
-enum PaymentStatus {
-  PENDING
-  COMPLETED
-  FAILED
-  REFUNDED
-}
+// Note: SQLite doesn't support enums, using String with constraints instead
 
 model User {
   id               Int       @id @default(autoincrement())
@@ -44,7 +28,7 @@ model User {
   // User profile fields
   fullName         String?   @map("full_name")
   phoneNumber      String?   @map("phone_number")
-  userType         UserType? @map("user_type")
+  userType         String?   @map("user_type")
   isActive         Boolean   @default(true) @map("is_active")
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime? @updatedAt @map("updated_at")
@@ -72,7 +56,7 @@ model Property {
   // Financial details
   rentAmount           Float        @map("rent_amount")
   depositAmount        Float        @default(0.0) @map("deposit_amount")
-  paymentMode          PaymentMode  @map("payment_mode")
+  paymentMode          String  @map("payment_mode")
   
   // Location details
   address              String
@@ -111,7 +95,7 @@ model RentAgreement {
   // Financial terms
   monthlyRent          Float        @map("monthly_rent")
   securityDeposit      Float        @map("security_deposit")
-  paymentMode          PaymentMode  @map("payment_mode")
+  paymentMode          String  @map("payment_mode")
   
   // Terms and conditions
   conditions           String?
@@ -150,7 +134,7 @@ model Payment {
   
   // Payment method and status
   paymentMethod        String?       @map("payment_method") // x402, bank_transfer, cash, etc.
-  status               PaymentStatus @default(PENDING)
+  status               String        @default("PENDING")
   
   // X402 specific fields
   x402PaymentId        String?       @map("x402_payment_id") // X402 payment identifier

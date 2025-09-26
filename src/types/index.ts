@@ -66,6 +66,8 @@ export interface PrivyUserData {
   profileId?: string;
   email?: string;
   fullName?: string;
+  username?: string;
+  phoneNumber?: string;
   embeddedWallet?: string;
   accountId?: string;
 }

@@ -1,10 +1,10 @@
 import { Router, Request, Response } from 'express';
-import { db } from '@/services/database';
-import { llmService } from '@/services/llm';
-import { requireAuth, requireActiveUser, getCurrentUser } from '@/middleware/auth';
-import { validate, validateQuery, schemas } from '@/utils/validation';
-import { ApiResponse, Property, PropertyCreate, PropertySearch } from '@/types';
-import { logger } from '@/utils/logger';
+import { db } from '../services/database';
+import { llmService } from '../services/llm';
+import { requireAuth, requireActiveUser, getCurrentUser } from '../middleware/auth';
+import { validate, validateQuery, schemas } from '../utils/validation';
+import { ApiResponse, Property, PropertyCreate, PropertySearch } from '../types';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
@@ -48,8 +48,102 @@ router.post('/', requireActiveUser, validate(schemas.propertyCreate), async (req
 });
 
 /**
- * GET /api/v1/properties
- * Get all properties with optional search filters
+ * @swagger
+ * /api/v1/properties:
+ *   get:
+ *     summary: Get all properties with optional search filters
+ *     description: Retrieve a list of properties with optional search and filter parameters
+ *     tags: [Properties]
+ *     parameters:
+ *       - in: query
+ *         name: city
+ *         schema:
+ *           type: string
+ *         description: Filter by city
+ *         example: "New York"
+ *       - in: query
+ *         name: state
+ *         schema:
+ *           type: string
+ *         description: Filter by state
+ *         example: "NY"
+ *       - in: query
+ *         name: minRent
+ *         schema:
+ *           type: number
+ *           format: float
+ *         description: Minimum rent amount
+ *         example: 1000
+ *       - in: query
+ *         name: maxRent
+ *         schema:
+ *           type: number
+ *           format: float
+ *         description: Maximum rent amount
+ *         example: 3000
+ *       - in: query
+ *         name: minRooms
+ *         schema:
+ *           type: integer
+ *         description: Minimum number of rooms
+ *         example: 1
+ *       - in: query
+ *         name: maxRooms
+ *         schema:
+ *           type: integer
+ *         description: Maximum number of rooms
+ *         example: 5
+ *       - in: query
+ *         name: hasKitchen
+ *         schema:
+ *           type: boolean
+ *         description: Filter by kitchen availability
+ *         example: true
+ *       - in: query
+ *         name: hasBathroom
+ *         schema:
+ *           type: boolean
+ *         description: Filter by bathroom availability
+ *         example: true
+ *       - in: query
+ *         name: paymentMode
+ *         schema:
+ *           type: string
+ *           enum: [monthly, weekly, daily]
+ *         description: Filter by payment mode
+ *         example: "monthly"
+ *       - in: query
+ *         name: isOccupied
+ *         schema:
+ *           type: boolean
+ *         description: Filter by occupancy status
+ *         example: false
+ *     responses:
+ *       200:
+ *         description: Properties retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Property'
+ *       400:
+ *         description: Validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/', validateQuery(schemas.propertySearch), async (req: Request, res: Response) => {
   try {

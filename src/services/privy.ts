@@ -1,6 +1,6 @@
 import { PrivyClient } from '@privy-io/server-auth';
-import { logger } from '@/utils/logger';
-import { PrivyUserData, PrivyAuthRequest, PrivyAuthResponse } from '@/types';
+import { logger } from '../utils/logger';
+import { PrivyUserData, PrivyAuthRequest, PrivyAuthResponse } from '../types';
 import { db } from './database';
 
 /**
@@ -64,7 +64,6 @@ class PrivyService {
         profileId: email, // Use email as profile_id for consistency
         email,
         fullName,
-        phoneNumber,
         username,
         embeddedWallet,
         accountId,

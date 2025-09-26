@@ -1,7 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
 import { v4 as uuidv4 } from 'uuid';
-import { logger } from '@/utils/logger';
-import { X402PaymentRequest, X402PaymentResponse } from '@/types';
+import { logger } from '../utils/logger';
+import { X402PaymentRequest, X402PaymentResponse } from '../types';
 
 /**
  * X402 Protocol implementation for payment processing

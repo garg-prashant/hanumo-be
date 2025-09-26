@@ -1,9 +1,9 @@
 import { Router, Request, Response } from 'express';
-import { db } from '@/services/database';
-import { requireAuth, requireActiveUser, getCurrentUser } from '@/middleware/auth';
-import { validate, schemas } from '@/utils/validation';
-import { ApiResponse, RentAgreement, RentAgreementCreate } from '@/types';
-import { logger } from '@/utils/logger';
+import { db } from '../services/database';
+import { requireAuth, requireActiveUser, getCurrentUser } from '../middleware/auth';
+import { validate, schemas } from '../utils/validation';
+import { ApiResponse, RentAgreement, RentAgreementCreate } from '../types';
+import { logger } from '../utils/logger';
 
 const router = Router();
 

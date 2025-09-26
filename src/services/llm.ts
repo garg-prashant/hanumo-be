@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { logger } from '@/utils/logger';
+import { logger } from '../utils/logger';
 
 /**
  * LLM Service for AI-powered features

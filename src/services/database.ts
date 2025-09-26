@@ -16,7 +16,7 @@ import {
   UserType,
   PaymentMode,
   PaymentStatus
-} from '@/types';
+} from '../types';
 
 class DatabaseService {
   private prisma: PrismaClient;

@@ -1,6 +1,6 @@
 import Joi from 'joi';
 import { Request, Response, NextFunction } from 'express';
-import { ApiResponse } from '@/types';
+import { ApiResponse } from '../types';
 
 /**
  * Validation middleware factory

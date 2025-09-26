@@ -8,19 +8,22 @@ import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 
 // Import middleware
-import { auth } from '@/middleware/auth';
+import { auth } from './middleware/auth';
 
 // Import routes
-import usersRouter from '@/routes/users';
-import propertiesRouter from '@/routes/properties';
-import rentAgreementsRouter from '@/routes/rent-agreements';
-import paymentsRouter from '@/routes/payments';
+import usersRouter from './routes/users';
+import propertiesRouter from './routes/properties';
+import rentAgreementsRouter from './routes/rent-agreements';
+import paymentsRouter from './routes/payments';
 
 // Import services
-import { db } from '@/services/database';
+import { db } from './services/database';
 
 // Import utilities
-import { logger, morganStream } from '@/utils/logger';
+import { logger, morganStream } from './utils/logger';
+
+// Import Swagger configuration
+import { setupSwagger } from './config/swagger';
 
 // Load environment variables
 dotenv.config();
@@ -65,7 +68,39 @@ app.use(morgan('combined', { stream: morganStream }));
 // Authentication middleware
 app.use(auth);
 
-// Health check endpoint
+// Setup Swagger documentation
+setupSwagger(app);
+
+/**
+ * @swagger
+ * /health:
+ *   get:
+ *     summary: Health check endpoint
+ *     description: Check if the server is running and healthy
+ *     tags: [System]
+ *     responses:
+ *       200:
+ *         description: Server is healthy
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Server is healthy"
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *                   example: "2024-01-01T00:00:00.000Z"
+ *                 uptime:
+ *                   type: number
+ *                   description: Server uptime in seconds
+ *                   example: 3600
+ */
 app.get('/health', (req, res) => {
   res.status(200).json({
     success: true,

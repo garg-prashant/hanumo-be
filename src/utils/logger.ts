@@ -34,31 +34,32 @@ const transports = [
   }),
 ];
 
-// Add file transport in production
-if (process.env.NODE_ENV === 'production') {
-  // Create logs directory if it doesn't exist
-  const logDir = path.join(process.cwd(), 'logs');
-  
-  transports.push(
+  // Add file transport in production
+  if (process.env.NODE_ENV === 'production') {
+    // Create logs directory if it doesn't exist
+    const logDir = path.join(process.cwd(), 'logs');
+    
     // Error log file
-    new winston.transports.File({
+    const errorFileTransport = new winston.transports.File({
       filename: path.join(logDir, 'error.log'),
       level: 'error',
       format: winston.format.combine(
         winston.format.timestamp(),
         winston.format.json()
       ),
-    }),
+    });
+    
     // Combined log file
-    new winston.transports.File({
+    const combinedFileTransport = new winston.transports.File({
       filename: path.join(logDir, 'combined.log'),
       format: winston.format.combine(
         winston.format.timestamp(),
         winston.format.json()
       ),
-    })
-  );
-}
+    });
+    
+    transports.push(errorFileTransport as any, combinedFileTransport as any);
+  }
 
 // Create the logger
 export const logger = winston.createLogger({

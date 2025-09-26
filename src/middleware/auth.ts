@@ -1,8 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { PrivyClient } from '@privy-io/server-auth';
-import { logger } from '@/utils/logger';
-import { db } from '@/services/database';
-import { User } from '@/types';
+import { logger } from '../utils/logger';
+import { db } from '../services/database';
+import { User } from '../types';
 
 // Extend Express Request interface
 declare global {

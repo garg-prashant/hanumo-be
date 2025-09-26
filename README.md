@@ -103,14 +103,30 @@ npm run build
 npm start
 ```
 
-## 📚 API Endpoints
+## 📚 API Documentation
 
-### Authentication
+### Swagger UI Interface
+
+The API includes comprehensive Swagger/OpenAPI documentation that you can access at:
+
+- **Swagger UI**: http://localhost:3000/api-docs
+- **OpenAPI JSON**: http://localhost:3000/api-docs.json
+
+The Swagger interface provides:
+- Interactive API testing
+- Complete endpoint documentation
+- Request/response schemas
+- Authentication examples
+- Try-it-out functionality
+
+### API Endpoints
+
+#### Authentication
 - `POST /api/v1/users/auth` - Authenticate with Privy token
 - `GET /api/v1/users/me` - Get current user
 - `PUT /api/v1/users/me` - Update user profile
 
-### Properties
+#### Properties
 - `GET /api/v1/properties` - List properties with search
 - `POST /api/v1/properties` - Create property
 - `GET /api/v1/properties/:id` - Get property details
@@ -118,14 +134,14 @@ npm start
 - `DELETE /api/v1/properties/:id` - Delete property
 - `POST /api/v1/properties/:id/enhance-description` - AI enhance description
 
-### Rent Agreements
+#### Rent Agreements
 - `GET /api/v1/rent-agreements` - List user agreements
 - `POST /api/v1/rent-agreements` - Create agreement
 - `GET /api/v1/rent-agreements/:id` - Get agreement details
 - `PUT /api/v1/rent-agreements/:id` - Update agreement
 - `DELETE /api/v1/rent-agreements/:id` - Delete agreement
 
-### Payments
+#### Payments
 - `GET /api/v1/payments` - List user payments
 - `POST /api/v1/payments` - Create payment
 - `GET /api/v1/payments/:id` - Get payment details

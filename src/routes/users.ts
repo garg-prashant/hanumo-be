@@ -1,16 +1,63 @@
 import { Router, Request, Response } from 'express';
-import { db } from '@/services/database';
-import { privyService } from '@/services/privy';
-import { requireAuth, requireActiveUser, getCurrentUser } from '@/middleware/auth';
-import { validate, schemas } from '@/utils/validation';
-import { ApiResponse, PrivyAuthResponse, User } from '@/types';
-import { logger } from '@/utils/logger';
+import { db } from '../services/database';
+import { privyService } from '../services/privy';
+import { requireAuth, requireActiveUser, getCurrentUser } from '../middleware/auth';
+import { validate, schemas } from '../utils/validation';
+import { ApiResponse, PrivyAuthResponse, User } from '../types';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
 /**
- * POST /api/v1/users/auth
- * Authenticate user with Privy JWT token
+ * @swagger
+ * /api/v1/users/auth:
+ *   post:
+ *     summary: Authenticate user with Privy JWT token
+ *     description: Authenticate user using Privy JWT token. If user exists, return user details. If user doesn't exist, create new user and return details.
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - accessToken
+ *             properties:
+ *               accessToken:
+ *                 type: string
+ *                 description: Privy JWT access token
+ *                 example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+ *     responses:
+ *       200:
+ *         description: Authentication successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       type: object
+ *                       properties:
+ *                         user:
+ *                           $ref: '#/components/schemas/User'
+ *                         isNewUser:
+ *                           type: boolean
+ *                           description: Whether this is a new user
+ *       400:
+ *         description: Validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post('/auth', validate(schemas.privyAuth), async (req: Request, res: Response) => {
   try {
@@ -40,8 +87,44 @@ router.post('/auth', validate(schemas.privyAuth), async (req: Request, res: Resp
 });
 
 /**
- * GET /api/v1/users/me
- * Get current user information
+ * @swagger
+ * /api/v1/users/me:
+ *   get:
+ *     summary: Get current user information
+ *     description: Retrieve the current authenticated user's information
+ *     tags: [Users]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User information retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/User'
+ *       401:
+ *         description: Unauthorized - Authentication required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/me', requireActiveUser, async (req: Request, res: Response) => {
   try {
