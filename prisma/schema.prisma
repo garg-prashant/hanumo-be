@@ -18,7 +18,11 @@ model User {
   privyId          String?   @unique @map("privy_id")
   profileId        String?   @map("profile_id") // email or wallet address
   embeddedWallet   String?   @map("embedded_wallet") // embedded wallet address
+  embeddedWalletDelegated Boolean? @default(false) @map("embedded_wallet_delegated") // delegation status
   accountId        String?   @map("account_id") // account identifier
+  
+  // Linked accounts information (JSON field to store all linked accounts)
+  linkedAccounts   String?   @map("linked_accounts") // JSON string of all linked accounts
   
   // Traditional fields (optional for Privy users)
   email            String?   @unique
@@ -30,6 +34,7 @@ model User {
   phoneNumber      String?   @map("phone_number")
   userType         String?   @map("user_type")
   isActive         Boolean   @default(true) @map("is_active")
+  isDelegated      Boolean   @default(false) @map("is_delegated")
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime? @updatedAt @map("updated_at")
   

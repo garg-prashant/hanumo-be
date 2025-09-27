@@ -94,10 +94,6 @@ export const schemas = {
     userType: Joi.string().valid('tenant', 'owner').optional(),
   }),
 
-  // Privy authentication schemas
-  privyAuth: Joi.object({
-    accessToken: Joi.string().required(),
-  }),
 
   // Property schemas
   propertyCreate: Joi.object({

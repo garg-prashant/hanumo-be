@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { PrivyClient } from '@privy-io/server-auth';
 import { logger } from '../utils/logger';
 import { db } from '../services/database';
+import { privyService } from '../services/privy';
 import { User } from '../types';
 
 // Extend Express Request interface
@@ -20,6 +21,17 @@ const privyClient = new PrivyClient(
   process.env.PRIVY_APP_ID!,
   process.env.PRIVY_APP_SECRET!
 );
+
+// Validate Privy client initialization at startup
+if (!process.env.PRIVY_APP_ID || !process.env.PRIVY_APP_SECRET) {
+  throw new Error('Privy client initialization failed: PRIVY_APP_ID and PRIVY_APP_SECRET must be set in environment variables.');
+}
+
+if (!privyClient) {
+  throw new Error('Privy client failed to initialize.');
+}
+
+
 
 /**
  * Authentication middleware that verifies Privy tokens and adds user info to request.
@@ -51,14 +63,18 @@ export const auth = async (req: Request, res: Response, next: NextFunction) => {
 
     // Get IP address
     const ipAddress = getClientIp(req);
+    logger.info(`The request is from ${ipAddress}`);
+
 
     // Extract and verify token
     const token = extractToken(req);
+    logger.info(`The token is ${token}`);
 
     if (token) {
       try {
         // Verify token with Privy
         const claim = await privyClient.verifyAuthToken(token);
+        logger.info(`The claim is ${JSON.stringify(claim)}`);
         const privyId = claim.userId;
 
         // Log successful authentication
@@ -71,7 +87,7 @@ export const auth = async (req: Request, res: Response, next: NextFunction) => {
         req.isAuthorized = Boolean(privyId);
         req.privyId = privyId;
 
-        // Try to get user from database
+        // Just validate that the user exists in database
         if (privyId) {
           const user = await db.user.findByPrivyId(privyId);
           req.user = user || undefined;
@@ -160,7 +176,7 @@ function extractToken(req: Request): string | null {
   }
 
   const [scheme, token] = authorization.split(' ');
-  if (scheme.toLowerCase() !== 'bearer') {
+  if (!token || scheme.toLowerCase() !== 'bearer') {
     return null;
   }
 
@@ -185,7 +201,7 @@ function getClientIp(req: Request): string {
   }
 
   // Fallback to direct connection IP
-  return req.connection.remoteAddress || req.socket.remoteAddress || 'unknown';
+  return (req.connection && req.connection.remoteAddress) || (req.socket && req.socket.remoteAddress) || 'unknown';
 }
 
 /**

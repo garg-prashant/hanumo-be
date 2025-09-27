@@ -86,9 +86,7 @@ if [ -f "$PID_FILE" ]; then
         echo ""
         echo -e "${BLUE}Application URLs:${NC}"
         echo "  • API Server: http://localhost:$PORT"
-        echo "  • Swagger UI: http://localhost:$PORT/api-docs"
         echo "  • Health Check: http://localhost:$PORT/health"
-        echo "  • OpenAPI JSON: http://localhost:$PORT/api-docs.json"
         
     else
         echo -e "${RED}✗ Application is not running (stale PID file)${NC}"
@@ -128,5 +126,4 @@ echo "  • Start: ./start.sh"
 echo "  • Stop: ./stop.sh"
 echo "  • View Logs: tail -f $LOG_DIR/app.log"
 echo "  • Test API: curl http://localhost:$PORT/health"
-echo "  • Test Swagger: open http://localhost:$PORT/api-docs"
 echo "  • Rebuild: npm run build"

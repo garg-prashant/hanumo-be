@@ -4,7 +4,7 @@ import { x402Service } from '../services/x402';
 import { requireAuth, requireActiveUser, getCurrentUser } from '../middleware/auth';
 import { validate, schemas } from '../utils/validation';
 import { ApiResponse, Payment, PaymentCreate, X402PaymentRequest, X402PaymentResponse } from '../types';
-import { logger } from '../utils/logger';
+import logger from '../utils/logger';
 
 const router = Router();
 

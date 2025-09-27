@@ -15,7 +15,8 @@ import {
   PaymentUpdate,
   UserType,
   PaymentMode,
-  PaymentStatus
+  PaymentStatus,
+  PrivyLinkedAccount
 } from '../types';
 
 class DatabaseService {
@@ -103,7 +104,10 @@ class DatabaseService {
       email?: string;
       fullName?: string;
       embeddedWallet?: string;
+      embeddedWalletDelegated?: boolean;
       accountId?: string;
+      isDelegated?: boolean;
+      linkedAccounts?: PrivyLinkedAccount[];
     }): Promise<User> => {
       const user = await this.prisma.user.create({
         data: {
@@ -112,7 +116,20 @@ class DatabaseService {
           email: data.email,
           fullName: data.fullName,
           embeddedWallet: data.embeddedWallet,
+          embeddedWalletDelegated: data.embeddedWalletDelegated || false,
           accountId: data.accountId,
+          isDelegated: data.isDelegated || false,
+          linkedAccounts: data.linkedAccounts ? JSON.stringify(data.linkedAccounts) : null,
+        },
+      });
+      return this.mapUserToInterface(user);
+    },
+
+    updateLinkedAccounts: async (id: number, linkedAccounts: PrivyLinkedAccount[]): Promise<User | null> => {
+      const user = await this.prisma.user.update({
+        where: { id },
+        data: {
+          linkedAccounts: JSON.stringify(linkedAccounts),
         },
       });
       return this.mapUserToInterface(user);
@@ -423,7 +440,9 @@ class DatabaseService {
       privyId: user.privyId,
       profileId: user.profileId,
       embeddedWallet: user.embeddedWallet,
+      embeddedWalletDelegated: user.embeddedWalletDelegated,
       accountId: user.accountId,
+      linkedAccounts: user.linkedAccounts ? JSON.parse(user.linkedAccounts) : undefined,
       email: user.email,
       username: user.username,
       hashedPassword: user.hashedPassword,
@@ -431,6 +450,7 @@ class DatabaseService {
       phoneNumber: user.phoneNumber,
       userType: user.userType,
       isActive: user.isActive,
+      isDelegated: user.isDelegated,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };

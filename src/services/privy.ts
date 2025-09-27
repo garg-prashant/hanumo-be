@@ -1,6 +1,6 @@
 import { PrivyClient } from '@privy-io/server-auth';
 import { logger } from '../utils/logger';
-import { PrivyUserData, PrivyAuthRequest, PrivyAuthResponse } from '../types';
+import { PrivyUserData, PrivyAuthRequest, PrivyAuthResponse, PrivyWallet, PrivyLinkedAccount, PrivyUserDetails } from '../types';
 import { db } from './database';
 
 /**
@@ -59,6 +59,9 @@ class PrivyService {
       // Extract account ID if available
       const accountId = privyUserData.accountId || privyUserData.account_id;
 
+      // Extract isDelegated flag if available
+      const isDelegated = privyUserData.isDelegated || privyUserData.is_delegated || false;
+
       return {
         privyId,
         profileId: email, // Use email as profile_id for consistency
@@ -67,6 +70,7 @@ class PrivyService {
         username,
         embeddedWallet,
         accountId,
+        isDelegated,
       };
     } catch (error) {
       logger.error('Error extracting user data:', error);
@@ -176,6 +180,79 @@ class PrivyService {
     } catch (error) {
       logger.error('Failed to update user profile:', error);
       throw new Error('Failed to update user profile');
+    }
+  }
+
+  /**
+   * Get user details from Privy by user ID
+   */
+  async getPrivyUser(userId: string): Promise<PrivyUserDetails> {
+    try {
+      const user = await this.client.getUserById(userId);
+
+      // Log all linked accounts for debugging
+      logger.info(`Linked accounts for user ${userId}:`, JSON.stringify(user.linkedAccounts, null, 2));
+
+      // Process all linked accounts
+      const linkedAccounts: PrivyLinkedAccount[] = user.linkedAccounts.map((account: any) => ({
+        type: account.type,
+        connectorType: account.connectorType,
+        address: account.address,
+        walletClient: account.walletClient,
+        chainType: account.chainType,
+        createdAt: account.createdAt,
+        verifiedAt: account.verifiedAt,
+        // Include any other fields that might be present
+        ...account
+      }));
+
+      // Find embedded wallet specifically
+      const embeddedWalletAccounts = linkedAccounts.filter(
+        (account) => account.type === "wallet" && account.connectorType === "embedded"
+      );
+
+      const embeddedWallet = embeddedWalletAccounts.length > 0
+        ? (embeddedWalletAccounts[0] as PrivyWallet)
+        : undefined;
+
+      const userDetails: PrivyUserDetails = {
+        userId,
+        linkedAccounts,
+        embeddedWallet
+      };
+
+      // Store linked accounts in database
+      await this.updateUserLinkedAccounts(userId, linkedAccounts);
+
+      return userDetails;
+    } catch (err) {
+      if (err instanceof Error) {
+        logger.error(`Error while fetching privy user details: ${err.message}; ${err.stack}`);
+      } else {
+        logger.error("Unknown error while fetching privy user details:", err);
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Update user's linked accounts in the database
+   */
+  private async updateUserLinkedAccounts(userId: string, linkedAccounts: PrivyLinkedAccount[]): Promise<void> {
+    try {
+      // Find user by privyId
+      const user = await db.user.findByPrivyId(userId);
+      
+      if (user) {
+        // Update user with linked accounts data
+        await db.user.updateLinkedAccounts(user.id, linkedAccounts);
+        logger.info(`Updated linked accounts for user ${userId} in database`);
+      } else {
+        logger.warn(`User with privyId ${userId} not found in database`);
+      }
+    } catch (error) {
+      logger.error(`Failed to update linked accounts for user ${userId}:`, error);
+      // Don't throw error here as this is a secondary operation
     }
   }
 }

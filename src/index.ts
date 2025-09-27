@@ -7,6 +7,9 @@ import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 
+// Load environment variables as early as possible
+dotenv.config();
+
 // Import middleware
 import { auth } from './middleware/auth';
 
@@ -15,21 +18,16 @@ import usersRouter from './routes/users';
 import propertiesRouter from './routes/properties';
 import rentAgreementsRouter from './routes/rent-agreements';
 import paymentsRouter from './routes/payments';
+import workflowRouter from './routes/workflow';
 
 // Import services
 import { db } from './services/database';
 
 // Import utilities
-import { logger, morganStream } from './utils/logger';
-
-// Import Swagger configuration
-import { setupSwagger } from './config/swagger';
-
-// Load environment variables
-dotenv.config();
+import logger, { morganStream } from './utils/logger';
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 // Security middleware
 app.use(helmet());
@@ -42,8 +40,8 @@ app.use(cors({
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'), // limit each IP to 100 requests per windowMs
+  windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
+  max: Number(process.env.RATE_LIMIT_MAX_REQUESTS) || 100, // limit each IP to 100 requests per windowMs
   message: {
     success: false,
     message: 'Too many requests from this IP, please try again later.',
@@ -68,39 +66,7 @@ app.use(morgan('combined', { stream: morganStream }));
 // Authentication middleware
 app.use(auth);
 
-// Setup Swagger documentation
-setupSwagger(app);
-
-/**
- * @swagger
- * /health:
- *   get:
- *     summary: Health check endpoint
- *     description: Check if the server is running and healthy
- *     tags: [System]
- *     responses:
- *       200:
- *         description: Server is healthy
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: "Server is healthy"
- *                 timestamp:
- *                   type: string
- *                   format: date-time
- *                   example: "2024-01-01T00:00:00.000Z"
- *                 uptime:
- *                   type: number
- *                   description: Server uptime in seconds
- *                   example: 3600
- */
+// Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({
     success: true,
@@ -115,6 +81,7 @@ app.use('/api/v1/users', usersRouter);
 app.use('/api/v1/properties', propertiesRouter);
 app.use('/api/v1/rent-agreements', rentAgreementsRouter);
 app.use('/api/v1/payments', paymentsRouter);
+app.use('/api/v1/workflow', workflowRouter);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -122,7 +89,6 @@ app.get('/', (req, res) => {
     success: true,
     message: 'Welcome to Hanumo Property Rental System API',
     version: '1.0.0',
-    documentation: '/api-docs',
   });
 });
 
@@ -136,9 +102,10 @@ app.use('*', (req, res) => {
 });
 
 // Global error handler
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((error: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
   logger.error('Unhandled error:', error);
-  
+
   res.status(500).json({
     success: false,
     message: 'Internal server error',
@@ -146,17 +113,26 @@ app.use((error: Error, req: express.Request, res: express.Response, next: expres
   });
 });
 
+let server: ReturnType<typeof app.listen> | null = null;
+
 // Graceful shutdown
 const gracefulShutdown = async (signal: string) => {
   logger.info(`Received ${signal}. Starting graceful shutdown...`);
-  
+
   try {
     // Close database connection
     await db.disconnect();
     logger.info('Database connection closed');
-    
-    // Close server
-    process.exit(0);
+
+    // Close server if running
+    if (server) {
+      server.close(() => {
+        logger.info('HTTP server closed');
+        process.exit(0);
+      });
+    } else {
+      process.exit(0);
+    }
   } catch (error) {
     logger.error('Error during graceful shutdown:', error);
     process.exit(1);
@@ -175,7 +151,7 @@ const startServer = async () => {
     logger.info('Database connected successfully');
 
     // Start HTTP server
-    app.listen(PORT, () => {
+    server = app.listen(PORT, () => {
       logger.info(`Server running on port ${PORT}`);
       logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
       logger.info(`Health check: http://localhost:${PORT}/health`);
@@ -187,6 +163,9 @@ const startServer = async () => {
 };
 
 // Start the server
-startServer();
+startServer().catch((error) => {
+  logger.error('Error during server startup:', error);
+  process.exit(1);
+});
 
 export default app;

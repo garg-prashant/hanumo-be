@@ -59,11 +59,9 @@ if [ ! -d "$APP_DIR/node_modules" ]; then
     npm install
 fi
 
-# Check if dist directory exists
-if [ ! -d "$APP_DIR/dist" ]; then
-    echo -e "${YELLOW}Building TypeScript application...${NC}"
-    npm run build
-fi
+# Always build the TypeScript application before starting
+echo -e "${YELLOW}Building TypeScript application...${NC}"
+npm run build
 
 # Create .env file if it doesn't exist
 if [ ! -f "$APP_DIR/.env" ]; then
@@ -114,7 +112,6 @@ npx prisma db push
 echo -e "${BLUE}Starting Node.js server on $HOST:$PORT...${NC}"
 echo -e "${GREEN}Application will be available at:${NC}"
 echo -e "  • API Server: http://localhost:$PORT"
-echo -e "  • Swagger UI: http://localhost:$PORT/api-docs"
 echo -e "  • Health Check: http://localhost:$PORT/health"
 echo ""
 

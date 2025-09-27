@@ -1,84 +1,207 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../services/database';
 import { privyService } from '../services/privy';
-import { requireAuth, requireActiveUser, getCurrentUser } from '../middleware/auth';
-import { validate, schemas } from '../utils/validation';
-import { ApiResponse, PrivyAuthResponse, User } from '../types';
-import { logger } from '../utils/logger';
+import { requireAuth, getCurrentUser } from '../middleware/auth';
+import { ApiResponse, User } from '../types';
+import logger from '../utils/logger';
 
 const router = Router();
 
 /**
- * @swagger
- * /api/v1/users/auth:
- *   post:
- *     summary: Authenticate user with Privy JWT token
- *     description: Authenticate user using Privy JWT token. If user exists, return user details. If user doesn't exist, create new user and return details.
- *     tags: [Authentication]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - accessToken
- *             properties:
- *               accessToken:
- *                 type: string
- *                 description: Privy JWT access token
- *                 example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
- *     responses:
- *       200:
- *         description: Authentication successful
- *         content:
- *           application/json:
- *             schema:
- *               allOf:
- *                 - $ref: '#/components/schemas/ApiResponse'
- *                 - type: object
- *                   properties:
- *                     data:
- *                       type: object
- *                       properties:
- *                         user:
- *                           $ref: '#/components/schemas/User'
- *                         isNewUser:
- *                           type: boolean
- *                           description: Whether this is a new user
- *       400:
- *         description: Validation error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       500:
- *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
+ * POST /api/v1/users/login
+ * Login user with Privy JWT token from Authorization header
+ * This endpoint handles user creation/fetching and returns user data
  */
-router.post('/auth', validate(schemas.privyAuth), async (req: Request, res: Response) => {
+router.post('/login', async (req: Request, res: Response) => {
   try {
-    const { accessToken } = req.body;
+    // Extract and verify token
+    const authorization = req.header('Authorization');
+    if (!authorization) {
+      const response: ApiResponse = {
+        success: false,
+        message: 'Authorization header required',
+      };
+      return res.status(401).json(response);
+    }
 
-    // Authenticate user with Privy
-    const authResponse: PrivyAuthResponse = await privyService.authenticateUser({ accessToken });
+    const [scheme, token] = authorization.split(' ');
+    if (!token || scheme.toLowerCase() !== 'bearer') {
+      const response: ApiResponse = {
+        success: false,
+        message: 'Invalid authorization format',
+      };
+      return res.status(401).json(response);
+    }
 
-    const response: ApiResponse<PrivyAuthResponse> = {
+    // Verify token with Privy
+    const claim = await privyService.verifyAccessToken(token);
+    const privyId = claim.userId;
+    
+    // Log complete JWT claim data
+    logger.info('Complete JWT claim data:', JSON.stringify(claim, null, 2));
+
+    if (!privyId) {
+      const response: ApiResponse = {
+        success: false,
+        message: 'Invalid token - no user ID found',
+      };
+      return res.status(401).json(response);
+    }
+
+    // Check if user exists in database
+    let user = await db.user.findByPrivyId(privyId);
+
+    if (!user) {
+      // User doesn't exist, create new user with Privy data
+      try {
+        // Fetch detailed user data from Privy to get linked accounts
+        const privyUserDetails = await privyService.getPrivyUser(privyId);
+        
+        // Log complete Privy user details
+        logger.info('Complete Privy user details:', JSON.stringify(privyUserDetails, null, 2));
+        
+        // Find embedded wallet address from linked accounts
+        const embeddedWalletAccount = privyUserDetails.linkedAccounts.find(
+          (account) => account.type === "wallet" && account.connectorType === "embedded"
+        );
+        
+        // Extract available data from the claim and Privy user details
+        const privyUserData = {
+          privyId: claim.userId,
+          profileId: (claim as any).email || (claim as any).profile_id,
+          email: (claim as any).email,
+          fullName: (claim as any).fullName || (claim as any).full_name || (claim as any).name,
+          username: (claim as any).username || (claim as any).userName,
+          phoneNumber: (claim as any).phoneNumber || (claim as any).phone_number || (claim as any).phone,
+          embeddedWallet: embeddedWalletAccount?.address || undefined,
+          embeddedWalletDelegated: embeddedWalletAccount?.delegated || false,
+          accountId: (claim as any).accountId || (claim as any).account_id,
+          isDelegated: (claim as any).isDelegated || (claim as any).is_delegated || false,
+          linkedAccounts: privyUserDetails.linkedAccounts,
+        };
+        
+        user = await db.user.createPrivyUser(privyUserData);
+        logger.info(`Created new user for privyId: ${privyId} with ${privyUserDetails.linkedAccounts.length} linked accounts`);
+      } catch (createError) {
+        logger.error('Failed to create user:', createError);
+        const response: ApiResponse = {
+          success: false,
+          message: 'Failed to create user',
+          error: createError instanceof Error ? createError.message : 'Unknown error',
+        };
+        return res.status(500).json(response);
+      }
+    } else {
+      // User exists, update their linked accounts data
+      try {
+        const privyUserDetails = await privyService.getPrivyUser(privyId);
+        logger.info(`Updated linked accounts for existing user ${privyId} with ${privyUserDetails.linkedAccounts.length} linked accounts`);
+        
+        // Find embedded wallet address from linked accounts
+        const embeddedWalletAccount = privyUserDetails.linkedAccounts.find(
+          (account) => account.type === "wallet" && account.connectorType === "embedded"
+        );
+        
+        // Update embedded wallet address and delegation status if found
+        if (embeddedWalletAccount?.address && user.embeddedWallet !== embeddedWalletAccount.address) {
+          await db.user.update(user.id, { 
+            embeddedWallet: embeddedWalletAccount.address,
+            embeddedWalletDelegated: embeddedWalletAccount.delegated || false
+          });
+          logger.info(`Updated embedded wallet address for user ${privyId}: ${embeddedWalletAccount.address}, delegated: ${embeddedWalletAccount.delegated}`);
+        } else if (embeddedWalletAccount?.address) {
+          // Check if delegation status changed
+          if (user.embeddedWalletDelegated !== embeddedWalletAccount.delegated) {
+            await db.user.update(user.id, { embeddedWalletDelegated: embeddedWalletAccount.delegated || false });
+            logger.info(`Updated embedded wallet delegation status for user ${privyId}: ${embeddedWalletAccount.delegated}`);
+          }
+        }
+        
+        // Refresh user data from database to get updated linked accounts
+        user = await db.user.findByPrivyId(privyId);
+      } catch (updateError) {
+        logger.error('Failed to update linked accounts for existing user:', updateError);
+        // Continue with existing user data if update fails
+      }
+    }
+
+    const response: ApiResponse<User> = {
       success: true,
-      data: authResponse,
-      message: authResponse.isNewUser ? 'User created successfully' : 'User authenticated successfully',
+      data: user!,
+      message: 'User logged in successfully',
     };
 
     res.status(200).json(response);
   } catch (error) {
-    logger.error('User authentication failed:', error);
+    logger.error('User login failed:', error);
     
     const response: ApiResponse = {
       success: false,
-      message: 'Authentication failed',
+      message: 'Login failed',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+
+    res.status(500).json(response);
+  }
+});
+
+
+/**
+ * GET /api/v1/users/privy-data
+ * Get complete Privy data for debugging
+ */
+router.get('/privy-data', async (req: Request, res: Response) => {
+  try {
+    // Extract and verify token
+    const authorization = req.header('Authorization');
+    if (!authorization) {
+      const response: ApiResponse = {
+        success: false,
+        message: 'Authorization header required',
+      };
+      return res.status(401).json(response);
+    }
+
+    const [scheme, token] = authorization.split(' ');
+    if (!token || scheme.toLowerCase() !== 'bearer') {
+      const response: ApiResponse = {
+        success: false,
+        message: 'Invalid authorization format',
+      };
+      return res.status(401).json(response);
+    }
+
+    // Verify token with Privy
+    const claim = await privyService.verifyAccessToken(token);
+    const privyId = claim.userId;
+
+    if (!privyId) {
+      const response: ApiResponse = {
+        success: false,
+        message: 'Invalid token - no user ID found',
+      };
+      return res.status(401).json(response);
+    }
+
+    // Get complete Privy user details
+    const privyUserDetails = await privyService.getPrivyUser(privyId);
+
+    const response: ApiResponse = {
+      success: true,
+      data: {
+        jwtClaim: claim,
+        privyUserDetails: privyUserDetails,
+      },
+      message: 'Complete Privy data retrieved successfully',
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    logger.error('Failed to get Privy data:', error);
+    
+    const response: ApiResponse = {
+      success: false,
+      message: 'Failed to get Privy data',
       error: error instanceof Error ? error.message : 'Unknown error',
     };
 
@@ -87,50 +210,46 @@ router.post('/auth', validate(schemas.privyAuth), async (req: Request, res: Resp
 });
 
 /**
- * @swagger
- * /api/v1/users/me:
- *   get:
- *     summary: Get current user information
- *     description: Retrieve the current authenticated user's information
- *     tags: [Users]
- *     security:
- *       - BearerAuth: []
- *     responses:
- *       200:
- *         description: User information retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               allOf:
- *                 - $ref: '#/components/schemas/ApiResponse'
- *                 - type: object
- *                   properties:
- *                     data:
- *                       $ref: '#/components/schemas/User'
- *       401:
- *         description: Unauthorized - Authentication required
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       404:
- *         description: User not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       500:
- *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
+ * GET /api/v1/users/me
+ * Get current authenticated user information
  */
-router.get('/me', requireActiveUser, async (req: Request, res: Response) => {
+router.get('/me', requireAuth, async (req: Request, res: Response) => {
   try {
-    const currentUser = getCurrentUser(req);
-    
-    if (!currentUser) {
+    // Extract the Privy token from the Authorization header
+    const authorization = req.header('Authorization');
+    if (!authorization) {
+      const response: ApiResponse = {
+        success: false,
+        message: 'Authorization header required',
+      };
+      return res.status(401).json(response);
+    }
+
+    const [scheme, token] = authorization.split(' ');
+    if (!token || scheme.toLowerCase() !== 'bearer') {
+      const response: ApiResponse = {
+        success: false,
+        message: 'Invalid authorization format',
+      };
+      return res.status(401).json(response);
+    }
+
+    // Verify token with Privy
+    const claim = await privyService.verifyAccessToken(token);
+    const privyId = claim.userId;
+
+    if (!privyId) {
+      const response: ApiResponse = {
+        success: false,
+        message: 'Invalid token - no user ID found',
+      };
+      return res.status(401).json(response);
+    }
+
+    // Fetch user details from the database using privyId
+    const user = await db.user.findByPrivyId(privyId);
+
+    if (!user) {
       const response: ApiResponse = {
         success: false,
         message: 'User not found',
@@ -140,13 +259,13 @@ router.get('/me', requireActiveUser, async (req: Request, res: Response) => {
 
     const response: ApiResponse<User> = {
       success: true,
-      data: currentUser,
+      data: user,
     };
 
     res.status(200).json(response);
   } catch (error) {
     logger.error('Get current user failed:', error);
-    
+
     const response: ApiResponse = {
       success: false,
       message: 'Failed to get user information',
@@ -159,9 +278,10 @@ router.get('/me', requireActiveUser, async (req: Request, res: Response) => {
 
 /**
  * PUT /api/v1/users/me
- * Update user profile information
+ * Update current user profile information
+ * Only allows updating non-Privy managed fields
  */
-router.put('/me', requireActiveUser, validate(schemas.userUpdate), async (req: Request, res: Response) => {
+router.put('/me', requireAuth, async (req: Request, res: Response) => {
   try {
     const currentUser = getCurrentUser(req);
     
@@ -173,7 +293,26 @@ router.put('/me', requireActiveUser, validate(schemas.userUpdate), async (req: R
       return res.status(404).json(response);
     }
 
-    const updatedUser = await db.user.update(currentUser.id, req.body);
+    // Only allow updating certain fields, not Privy-managed ones
+    const allowedUpdates = {
+      phoneNumber: req.body.phoneNumber,
+      userType: req.body.userType,
+    };
+
+    // Remove undefined values
+    const cleanUpdates = Object.fromEntries(
+      Object.entries(allowedUpdates).filter(([_, value]) => value !== undefined)
+    );
+
+    if (Object.keys(cleanUpdates).length === 0) {
+      const response: ApiResponse = {
+        success: false,
+        message: 'No valid fields to update',
+      };
+      return res.status(400).json(response);
+    }
+
+    const updatedUser = await db.user.update(currentUser.id, cleanUpdates);
     
     if (!updatedUser) {
       const response: ApiResponse = {
@@ -205,9 +344,9 @@ router.put('/me', requireActiveUser, validate(schemas.userUpdate), async (req: R
 
 /**
  * GET /api/v1/users/profile
- * Get user profile with additional information
+ * Get current user profile with additional statistics
  */
-router.get('/profile', requireActiveUser, async (req: Request, res: Response) => {
+router.get('/profile', requireAuth, async (req: Request, res: Response) => {
   try {
     const currentUser = getCurrentUser(req);
     
@@ -257,126 +396,6 @@ router.get('/profile', requireActiveUser, async (req: Request, res: Response) =>
     const response: ApiResponse = {
       success: false,
       message: 'Failed to get user profile',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    };
-
-    res.status(500).json(response);
-  }
-});
-
-/**
- * DELETE /api/v1/users/me
- * Delete user account
- */
-router.delete('/me', requireAuth, async (req: Request, res: Response) => {
-  try {
-    const currentUser = getCurrentUser(req);
-    
-    if (!currentUser) {
-      const response: ApiResponse = {
-        success: false,
-        message: 'User not found',
-      };
-      return res.status(404).json(response);
-    }
-
-    const deleted = await db.user.delete(currentUser.id);
-    
-    if (!deleted) {
-      const response: ApiResponse = {
-        success: false,
-        message: 'Failed to delete user',
-      };
-      return res.status(500).json(response);
-    }
-
-    const response: ApiResponse = {
-      success: true,
-      message: 'User account deleted successfully',
-    };
-
-    res.status(200).json(response);
-  } catch (error) {
-    logger.error('Delete user failed:', error);
-    
-    const response: ApiResponse = {
-      success: false,
-      message: 'Failed to delete user',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    };
-
-    res.status(500).json(response);
-  }
-});
-
-/**
- * GET /api/v1/users/wallets
- * Get user's embedded wallets
- */
-router.get('/wallets', requireActiveUser, async (req: Request, res: Response) => {
-  try {
-    const currentUser = getCurrentUser(req);
-    
-    if (!currentUser || !currentUser.privyId) {
-      const response: ApiResponse = {
-        success: false,
-        message: 'User not found or not authenticated with Privy',
-      };
-      return res.status(404).json(response);
-    }
-
-    const wallets = await privyService.getUserWallets(currentUser.privyId);
-
-    const response: ApiResponse<any[]> = {
-      success: true,
-      data: wallets,
-    };
-
-    res.status(200).json(response);
-  } catch (error) {
-    logger.error('Get user wallets failed:', error);
-    
-    const response: ApiResponse = {
-      success: false,
-      message: 'Failed to get user wallets',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    };
-
-    res.status(500).json(response);
-  }
-});
-
-/**
- * POST /api/v1/users/wallets
- * Create a new embedded wallet for the user
- */
-router.post('/wallets', requireActiveUser, async (req: Request, res: Response) => {
-  try {
-    const currentUser = getCurrentUser(req);
-    
-    if (!currentUser || !currentUser.privyId) {
-      const response: ApiResponse = {
-        success: false,
-        message: 'User not found or not authenticated with Privy',
-      };
-      return res.status(404).json(response);
-    }
-
-    const wallet = await privyService.createEmbeddedWallet(currentUser.privyId);
-
-    const response: ApiResponse<any> = {
-      success: true,
-      data: wallet,
-      message: 'Embedded wallet created successfully',
-    };
-
-    res.status(201).json(response);
-  } catch (error) {
-    logger.error('Create embedded wallet failed:', error);
-    
-    const response: ApiResponse = {
-      success: false,
-      message: 'Failed to create embedded wallet',
       error: error instanceof Error ? error.message : 'Unknown error',
     };
 

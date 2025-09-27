@@ -29,7 +29,9 @@ export interface User extends BaseEntity {
   privyId?: string;
   profileId?: string;
   embeddedWallet?: string;
+  embeddedWalletDelegated?: boolean;
   accountId?: string;
+  linkedAccounts?: PrivyLinkedAccount[];
   email?: string;
   username?: string;
   hashedPassword?: string;
@@ -37,6 +39,7 @@ export interface User extends BaseEntity {
   phoneNumber?: string;
   userType?: UserType;
   isActive: boolean;
+  isDelegated?: boolean;
 }
 
 export interface UserCreate {
@@ -54,11 +57,40 @@ export interface UserUpdate {
   fullName?: string;
   phoneNumber?: string;
   userType?: UserType;
+  embeddedWallet?: string;
+  embeddedWalletDelegated?: boolean;
 }
 
 // Privy authentication interfaces
 export interface PrivyAuthRequest {
   accessToken: string;
+}
+
+export interface PrivyWallet {
+  address: string;
+  walletClient: string;
+  chainType: string;
+  connectorType: string;
+  createdAt: string;
+  verifiedAt: string;
+}
+
+export interface PrivyLinkedAccount {
+  type: string;
+  connectorType: string;
+  address?: string;
+  walletClient?: string;
+  chainType?: string;
+  createdAt?: string;
+  verifiedAt?: string;
+  // Add other fields that might be present in linked accounts
+  [key: string]: any;
+}
+
+export interface PrivyUserDetails {
+  userId: string;
+  linkedAccounts: PrivyLinkedAccount[];
+  embeddedWallet?: PrivyWallet;
 }
 
 export interface PrivyUserData {
@@ -70,6 +102,7 @@ export interface PrivyUserData {
   phoneNumber?: string;
   embeddedWallet?: string;
   accountId?: string;
+  isDelegated?: boolean;
 }
 
 export interface PrivyAuthResponse {
@@ -241,6 +274,7 @@ export interface PaymentUpdate {
   paymentType?: string;
   paymentMethod?: string;
   status?: PaymentStatus;
+  x402TransactionHash?: string;
   paymentPeriodStart?: Date;
   paymentPeriodEnd?: Date;
   dueDate?: Date;
@@ -318,6 +352,18 @@ export interface UserService {
   findByPrivyId(privyId: string): Promise<User | null>;
   update(id: number, data: UserUpdate): Promise<User | null>;
   delete(id: number): Promise<boolean>;
+  createPrivyUser(data: {
+    privyId: string;
+    profileId?: string;
+    email?: string;
+    fullName?: string;
+    embeddedWallet?: string;
+    embeddedWalletDelegated?: boolean;
+    accountId?: string;
+    isDelegated?: boolean;
+    linkedAccounts?: PrivyLinkedAccount[];
+  }): Promise<User>;
+  updateLinkedAccounts(id: number, linkedAccounts: PrivyLinkedAccount[]): Promise<User | null>;
 }
 
 export interface PropertyService {

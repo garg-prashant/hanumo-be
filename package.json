@@ -3,6 +3,21 @@
   "version": "1.0.0",
   "description": "Hanumo Property Rental System Backend - Node.js TypeScript",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./logger": {
+      "types": "./dist/logger/index.d.ts",
+      "default": "./dist/logger/index.js"
+    },
+    "./utils/logger": {
+      "types": "./dist/utils/logger.d.ts",
+      "default": "./dist/utils/logger.js"
+    }
+  },
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
@@ -29,16 +44,18 @@
   "author": "Hanumo Team",
   "license": "MIT",
   "dependencies": {
+    "@langchain/core": "^0.3.77",
+    "@langchain/langgraph": "^0.4.9",
+    "@langchain/openai": "^0.6.13",
     "@prisma/client": "^5.7.1",
     "@privy-io/server-auth": "^1.0.0",
-    "@types/swagger-jsdoc": "^6.0.4",
-    "@types/swagger-ui-express": "^4.1.8",
-    "axios": "^1.6.2",
+    "axios": "^1.12.2",
     "bcryptjs": "^2.4.3",
     "compression": "^1.7.4",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
+    "ethers": "^6.15.0",
     "express": "^4.18.2",
     "express-rate-limit": "^7.1.5",
     "express-validator": "^7.0.1",
@@ -46,11 +63,11 @@
     "joi": "^17.11.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
+    "node-telegram-bot-api": "^0.66.0",
     "openai": "^4.20.1",
-    "swagger-jsdoc": "^6.2.8",
-    "swagger-ui-express": "^5.0.1",
     "uuid": "^9.0.1",
-    "winston": "^3.11.0"
+    "pino": "^8.17.2",
+    "pino-pretty": "^10.3.1"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -62,6 +79,7 @@
     "@types/jsonwebtoken": "^9.0.5",
     "@types/morgan": "^1.9.9",
     "@types/node": "^20.10.4",
+    "@types/node-telegram-bot-api": "^0.64.11",
     "@types/supertest": "^2.0.16",
     "@types/uuid": "^9.0.7",
     "@typescript-eslint/eslint-plugin": "^6.13.1",
